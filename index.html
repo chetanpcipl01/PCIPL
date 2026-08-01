@@ -1,17 +1,29 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loading App...</title>
+    <title>Product Catalog</title>
     <style>
-        body {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+        /* Loader Style */
+        #loader-container {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             font-family: Arial, sans-serif;
-            margin: 0;
-            background-color: #ffffff;
         }
         .loader {
             border: 4px solid #f3f3f3;
@@ -25,13 +37,25 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        /* Fullscreen iFrame Style */
+        iframe {
+            width: 100%;
+            height: 100vh;
+            border: none;
+            display: none; /* Starting me hide rahega */
+        }
     </style>
 </head>
 <body>
-    <div style="text-align: center;">
+
+    <!-- Loading Screen -->
+    <div id="loader-container">
         <div class="loader"></div>
         <p style="margin-top:15px; color:#555;">Opening Application...</p>
     </div>
+
+    <!-- App Screen (iFrame) -->
+    <iframe id="appFrame"></iframe>
 
     <script>
         // Google Doc ID
@@ -43,13 +67,23 @@
             .then(targetUrl => {
                 const cleanUrl = targetUrl.trim();
                 if (cleanUrl.startsWith("http")) {
-                    window.location.replace(cleanUrl);
+                    const iframe = document.getElementById("appFrame");
+                    const loader = document.getElementById("loader-container");
+                    
+                    // iFrame me Google Apps Script load karein
+                    iframe.src = cleanUrl;
+                    
+                    // App load hote hi loader hata kar iframe dikhayein
+                    iframe.onload = function() {
+                        loader.style.display = "none";
+                        iframe.style.display = "block";
+                    };
                 } else {
-                    document.body.innerHTML = "Invalid URL inside Google Doc.";
+                    document.getElementById("loader-container").innerHTML = "Invalid URL inside Google Doc.";
                 }
             })
             .catch(err => {
-                document.body.innerHTML = "Error fetching app link.";
+                document.getElementById("loader-container").innerHTML = "Error fetching app link.";
             });
     </script>
 </body>
