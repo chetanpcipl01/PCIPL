@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Catalog</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Segoe UI', Roboto, sans-serif; min-height: 100vh; }
+    .login-card { max-width: 420px; margin: 80px auto; border-radius: 16px; border: none; }
+    .catalog-container { max-width: 800px; margin: 0 auto; padding-bottom: 110px; }
+    .category-pills { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 5px; }
+    .category-pills .btn { border-radius: 20px; white-space: nowrap; font-size: 0.85rem; font-weight: 500; }
+    
+    .list-card { background: #fff; border-radius: 10px; border: 1px solid #eef2f5; padding: 14px; margin-bottom: 10px; transition: box-shadow 0.2s; }
+    .list-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .product-group-text { color: #e67e22; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .product-name-text { font-size: 0.95rem; font-weight: 600; color: #2c3e50; }
+    .price-text { color: #27ae60; font-weight: 700; font-size: 1rem; }
+    .qty-input { width: 70px; text-align: center; border-radius: 6px; }
+    
+    /* Sticky Bottom Cart Bar */
+    .cart-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); display: none; align-items: center; justify-content: space-between; padding: 12px 24px; width: 92%; max-width: 500px; z-index: 1000; }
+    .cart-badge { position: absolute; top: -6px; right: -6px; background: #e74c3c; color: #fff; font-size: 0.7rem; font-weight: 700; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+  </style>
+</head>
+<body>
+
+  <!-- SECTION 1: LOGIN -->
+  <div id="loginSection" class="container">
+    <div class="card login-card shadow-sm p-4 text-center">
+      <div class="mb-3">
+        <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+          <i class="bi bi-person fs-2"></i>
+        </div>
+      </div>
+      <h4 class="fw-bold">Welcome Customer</h4>
+      <p class="text-muted small mb-4">Please enter your mobile number to continue</p>
+      
+      <form onsubmit="event.preventDefault(); handleLogin();">
+        <div class="input-group mb-3">
+          <span class="input-group-text bg-light">IN +91</span>
+          <input type="tel" id="mobileInput" class="form-control" placeholder="Enter mobile number" required>
+        </div>
+        <button type="submit" id="loginBtn" class="btn btn-primary w-100 py-2 fw-semibold">Continue</button>
+      </form>
+      <div id="loginError" class="alert alert-danger mt-3 py-2 small" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: CATALOG -->
+  <div id="catalogSection" class="container catalog-container pt-4" style="display:none;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h5 class="mb-0 fw-bold">Welcome, <span id="customerHeaderName" class="text-primary"></span></h5>
+        <small class="text-muted">Browse and order items</small>
+      </div>
+      <button class="btn btn-light rounded-circle" onclick="handleLogout()" title="Logout">
+        <i class="bi bi-box-arrow-right fs-5"></i>
+      </button>
+    </div>
+
+    <!-- Search Input -->
+    <div class="input-group mb-3 shadow-sm rounded">
+      <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+      <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Search items..." oninput="executeSearch()">
+    </div>
+
+    <!-- Dynamic Category Pills -->
+    <div id="categoryPills" class="d-flex gap-2 category-pills mb-3"></div>
+
+    <!-- Loading Spinner & Product List -->
+    <div id="loading" class="text-center my-5" style="display:none;">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="text-muted small mt-2">Loading catalog...</p>
+    </div>
+    <div id="productList"></div>
+  </div>
+
+  <!-- SECTION 3: STICKY CART BAR -->
+  <div id="cartBar" class="cart-bar">
+    <div class="d-flex align-items-center gap-3">
+      <div class="position-relative fs-3 text-primary">
+        <i class="bi bi-cart3"></i>
+        <span id="cartBadge" class="cart-badge">0</span>
+      </div>
+      <div>
+        <div id="cartItemCount" class="fw-bold small">0 items</div>
+        <div id="cartTotalQty" class="text-muted extra-small" style="font-size: 0.75rem;">Qty: 0</div>
+      </div>
+    </div>
+    <button class="btn btn-primary px-4 rounded-pill fw-semibold" onclick="openCartModal()">Continue</button>
+  </div>
+
+  <!-- SECTION 4: CART SUMMARY MODAL -->
+  <div class="modal fade" id="cartModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow">
+        <div class="modal-header border-bottom-0 pb-0">
+          <h6 class="modal-title fw-bold"><i class="bi bi-cart-check me-2"></i>Cart Summary</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="modalCartItems" class="mb-3" style="max-height: 250px; overflow-y: auto;"></div>
+          <div class="bg-light p-3 rounded-3 mb-3">
+            <div class="d-flex justify-content-between small text-muted mb-1">
+              <span>Total Items:</span><span id="summaryTotalItems" class="fw-bold text-dark">0</span>
+            </div>
+            <div class="d-flex justify-content-between small text-muted mb-1">
+              <span>Total Quantity:</span><span id="summaryTotalQty" class="fw-bold text-dark">0</span>
+            </div>
+            <hr class="my-2">
+            <div class="d-flex justify-content-between fw-bold fs-6">
+              <span>Total Amount:</span><span id="summaryTotalAmount" class="text-success">₹0.0</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-top-0 pt-0">
+          <button type="button" class="btn btn-light w-48" data-bs-dismiss="modal">Close</button>
+          <button type="button" id="placeOrderBtn" class="btn btn-primary w-48" onclick="submitOrder()">Place Order</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // ⚠️ यहाँ अपना Google Apps Script Web App Deployment URL बदलें
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxJ84f0tH0ruNFVTOJ0NmI6CGeGIXBuZMnyVbiO_dsciZCTGPeh64LWMwM_CpHPI_pahg/exec";
+
+    let currentCustomer = { name: "", mobile: "" };
+    let cart = {};
+    let allProducts = [];
+    let activeCategory = 'All';
+
+    async function apiCall(action, params = {}, method = 'GET', body = null) {
+      let url = `${SCRIPT_URL}?action=${action}`;
+      Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
+      
+      const options = { method: method };
+      if (body) {
+        options.body = JSON.stringify(body);
+      }
+      const response = await fetch(url, options);
+      return await response.json();
+    }
+
+    async function handleLogin() {
+      const mobile = document.getElementById('mobileInput').value.trim();
+      const errDiv = document.getElementById('loginError');
+      const btn = document.getElementById('loginBtn');
+      
+      errDiv.style.display = 'none';
+      btn.disabled = true;
+      btn.innerText = "Checking...";
+
+      try {
+        const res = await apiCall('checkLogin', { mobile: mobile });
+        btn.disabled = false;
+        btn.innerText = "Continue";
+
+        if(res && res.success) {
+          currentCustomer = { name: res.customerName.toUpperCase(), mobile: mobile };
+          document.getElementById('loginSection').style.display = 'none';
+          document.getElementById('catalogSection').style.display = 'block';
+          document.getElementById('customerHeaderName').innerText = currentCustomer.name;
+          
+          loadCategories();
+          loadAllProducts();
+        } else {
+          errDiv.innerText = res.message || "Mobile number not registered.";
+          errDiv.style.display = 'block';
+        }
+      } catch(e) {
+        btn.disabled = false;
+        btn.innerText = "Continue";
+        errDiv.innerText = "Server Error. Please check SCRIPT_URL.";
+        errDiv.style.display = 'block';
+      }
+    }
+
+    async function loadCategories() {
+      const container = document.getElementById('categoryPills');
+      try {
+        const res = await apiCall('getCategories');
+        if(res.success) {
+          let html = `<button class="btn btn-primary active" onclick="setCategory('All', this)">All</button>`;
+          res.data.forEach(cat => {
+            html += `<button class="btn btn-outline-secondary" onclick="setCategory('${escapeHtml(cat)}', this)">${escapeHtml(cat).toUpperCase()}</button>`;
+          });
+          container.innerHTML = html;
+        }
+      } catch(e) {}
+    }
+
+    async function loadAllProducts() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('productList').innerHTML = '';
+      try {
+        const res = await apiCall('getProducts');
+        allProducts = res.data || [];
+        executeSearch();
+      } catch(e) {
+        alert("Error loading catalog.");
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+
+    function setCategory(cat, btn) {
+      activeCategory = cat;
+      document.querySelectorAll('#categoryPills .btn').forEach(b => {
+        b.classList.remove('btn-primary', 'active');
+        b.classList.add('btn-outline-secondary');
+      });
+      btn.classList.remove('btn-outline-secondary');
+      btn.classList.add('btn-primary', 'active');
+      executeSearch();
+    }
+
+    function executeSearch() {
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      let filtered = allProducts.filter(p => {
+        const matchesQuery = !q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
+        const matchesCat = activeCategory === 'All' || p.group.toUpperCase() === activeCategory.toUpperCase();
+        return matchesQuery && matchesCat;
+      });
+      renderList(filtered);
+    }
+
+    function renderList(products) {
+      const list = document.getElementById('productList');
+      if(!products.length) {
+        list.innerHTML = '<div class="text-center text-muted mt-5">No items found.</div>';
+        return;
+      }
+      let html = '';
+      products.forEach(p => {
+        const key = p.code || p.name;
+        const qty = cart[key] ? cart[key].qty : '';
+        html += `
+          <div class="list-card d-flex justify-content-between align-items-center">
+            <div>
+              <div class="product-group-text">${escapeHtml(p.group)} ${p.code ? '- ' + escapeHtml(p.code) : ''}</div>
+              <div class="product-name-text">${escapeHtml(p.name)}</div>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+              <span class="price-text">₹${parseFloat(p.mrp).toFixed(1)}</span>
+              <input type="number" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}"
+                oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
+            </div>
+          </div>`;
+      });
+      list.innerHTML = html;
+    }
+
+    function updateCart(id, name, mrp, val) {
+      const qty = parseInt(val);
+      if (qty > 0) {
+        cart[id] = { name: name, mrp: parseFloat(mrp), qty: qty };
+      } else {
+        delete cart[id];
+      }
+      updateCartUI();
+    }
+
+    function updateCartUI() {
+      const keys = Object.keys(cart);
+      const totalItems = keys.length;
+      const cartBar = document.getElementById('cartBar');
+
+      if (!totalItems) {
+        cartBar.style.display = 'none';
+        return;
+      }
+      let totalQty = 0;
+      keys.forEach(k => totalQty += cart[k].qty);
+
+      document.getElementById('cartBadge').innerText = totalItems;
+      document.getElementById('cartItemCount').innerText = `${totalItems} items`;
+      document.getElementById('cartTotalQty').innerText = `Qty: ${totalQty}`;
+      cartBar.style.display = 'flex';
+    }
+
+    function openCartModal() {
+      const container = document.getElementById('modalCartItems');
+      let html = '', totalAmt = 0, totalQty = 0;
+
+      Object.keys(cart).forEach(id => {
+        const item = cart[id];
+        const itemTotal = item.qty * item.mrp;
+        totalAmt += itemTotal;
+        totalQty += item.qty;
+
+        html += `
+          <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+            <div>
+              <div class="fw-bold small">${escapeHtml(item.name)}</div>
+              <div class="text-muted extra-small">₹${item.mrp} × ${item.qty} = <span class="text-success fw-bold">₹${itemTotal.toFixed(1)}</span></div>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="adjustModalQty('${id}', -1)">-</button>
+              <span class="px-2 small fw-bold">${item.qty}</span>
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="adjustModalQty('${id}', 1)">+</button>
+            </div>
+          </div>`;
+      });
+
+      container.innerHTML = html;
+      document.getElementById('summaryTotalItems').innerText = Object.keys(cart).length;
+      document.getElementById('summaryTotalQty').innerText = totalQty;
+      document.getElementById('summaryTotalAmount').innerText = `₹${totalAmt.toFixed(1)}`;
+
+      new bootstrap.Modal(document.getElementById('cartModal')).show();
+    }
+
+    function adjustModalQty(id, delta) {
+      if (cart[id]) {
+        cart[id].qty += delta;
+        if (cart[id].qty <= 0) delete cart[id];
+        updateCartUI();
+        executeSearch();
+        if (Object.keys(cart).length === 0) {
+          bootstrap.Modal.getInstance(document.getElementById('cartModal')).hide();
+        } else {
+          openCartModal();
+        }
+      }
+    }
+
+    async function submitOrder() {
+      const btn = document.getElementById('placeOrderBtn');
+      btn.disabled = true;
+      btn.innerText = "Saving...";
+
+      const payload = {
+        cart: Object.values(cart),
+        customerName: currentCustomer.name,
+        mobile: currentCustomer.mobile
+      };
+
+      try {
+        const res = await apiCall('saveOrderData', {}, 'POST', payload);
+        btn.disabled = false;
+        btn.innerText = "Place Order";
+
+        if(res.success) {
+          alert("Order placed successfully!");
+          cart = {};
+          updateCartUI();
+          executeSearch();
+          bootstrap.Modal.getInstance(document.getElementById('cartModal')).hide();
+        } else {
+          alert("Order Failed: " + res.message);
+        }
+      } catch(e) {
+        btn.disabled = false;
+        btn.innerText = "Place Order";
+        alert("Server error, order could not be saved.");
+      }
+    }
+
+    function handleLogout() {
+      cart = {};
+      allProducts = [];
+      updateCartUI();
+      document.getElementById('mobileInput').value = '';
+      document.getElementById('catalogSection').style.display = 'none';
+      document.getElementById('loginSection').style.display = 'block';
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+  </script>
+</body>
+</html>
