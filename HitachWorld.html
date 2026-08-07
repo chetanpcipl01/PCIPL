@@ -166,8 +166,26 @@
       cartModalObj = new bootstrap.Modal(document.getElementById('cartModal'));
       successModalObj = new bootstrap.Modal(document.getElementById('successModal'));
     });
-
     async function apiCall(action, params = {}, method = 'GET', body = null) {
+    let url = `${SCRIPT_URL}?action=${action}`;
+    Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
+  
+    const options = { 
+    method: method,
+    // Yeh header zaroori hai CORS bypass karne ke liye
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8" 
+    }
+  };
+  
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+  
+  const response = await fetch(url, options);
+  return await response.json();
+}
+    async function apiCallold(action, params = {}, method = 'GET', body = null) {
       let url = `${SCRIPT_URL}?action=${action}`;
       Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
       
