@@ -154,7 +154,12 @@
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw8sR49QIjx2bMg4tCGwzx7XwVp6xFa9RhTwX_49nged_jHTMvf6c46NmJ2qmm-O7aZ-A/exec";
     
     const COMPANY_NAME = "Procure Consultancy India Pvt Ltd";
-
+    // ==========================================
+    // DATE LOCK CONFIGURATION
+    // Format: "YYYY-MM-DD" (Year-Month-Day)
+    const APP_EXPIRY_DATE = "2026-08-06"; // Is date ko aap apne hisaab se change kar sakte hain
+    // ==========================================
+    
     let currentCustomer = { name: "", mobile: "" };
     let cart = {};
     let allProducts = [];
@@ -163,28 +168,44 @@
     let successModalObj = null;
 
     document.addEventListener("DOMContentLoaded", function() {
+      // --- DATE LOCK CHECK LOGIC ---
+      const currentDate = new Date();
+      const expiryDate = new Date(APP_EXPIRY_DATE);
+      
+      // Din ke aakhiri second tak valid rakhne ke liye
+      expiryDate.setHours(23, 59, 59, 999);
+
+      if (currentDate > expiryDate) {
+        // Agar date nikal gayi hai, toh direct Expired.html par bhej dein
+        window.location.href = "Expired.html";
+        return; // Aage ka koi DOM ya modal initialize nahi hoga
+      }
+      // ------------------------------
+
       cartModalObj = new bootstrap.Modal(document.getElementById('cartModal'));
       successModalObj = new bootstrap.Modal(document.getElementById('successModal'));
     });
+
     async function apiCall(action, params = {}, method = 'GET', body = null) {
-    let url = `${SCRIPT_URL}?action=${action}`;
-    Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
+      let url = `${SCRIPT_URL}?action=${action}`;
+      Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
   
-    const options = { 
-    method: method,
-    // Yeh header zaroori hai CORS bypass karne ke liye
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8" 
+      const options = { 
+        method: method,
+        // Yeh header zaroori hai CORS bypass karne ke liye
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8" 
+        }
+      };
+  
+      if (body) {
+        options.body = JSON.stringify(body);
+      }
+  
+      const response = await fetch(url, options);
+      return await response.json();
     }
-  };
-  
-  if (body) {
-    options.body = JSON.stringify(body);
-  }
-  
-  const response = await fetch(url, options);
-  return await response.json();
-}
+
     async function apiCallold(action, params = {}, method = 'GET', body = null) {
       let url = `${SCRIPT_URL}?action=${action}`;
       Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
