@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading App...</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Loader aur text yahan se hata diya gaya hai -->
+
+    <script>
+        // ==========================================
+        // DATE LOCK CONFIGURATION
+        // Format: "YYYY-MM-DD" (Year-Month-Day)
+        const APP_EXPIRY_DATE = "2026-08-08"; 
+        // ==========================================
+
+        const currentDate = new Date();
+        const expiryDate = new Date(APP_EXPIRY_DATE);
+        
+        // Din ke aakhiri second tak valid rakhne ke liye
+        expiryDate.setHours(23, 59, 59, 999);
+
+        if (currentDate > expiryDate) {
+            // Agar date nikal gayi hai, toh direct Expired.html par bhej dein
+            window.location.replace("Expired.html");
+        } else {
+            // Google Doc ID
+            const docId = "19bEbx27PWmmXLKS2nDXk7IsHGxlET2ZIzM-dvb2_x-A";
+            const docTextUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
+
+            fetch(docTextUrl)
+                .then(res => res.text())
+                .then(targetUrl => {
+                    const cleanUrl = targetUrl.trim();
+                    if (cleanUrl.startsWith("http")) {
+                        window.location.replace(cleanUrl);
+                    } else {
+                        document.body.innerHTML = "Invalid URL inside Google Doc.";
+                    }
+                })
+                .catch(err => {
+                    document.body.innerHTML = "Error fetching app link.";
+                });
+        }
+    </script>
+</body>
+</html>
