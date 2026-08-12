@@ -152,13 +152,8 @@
   
   <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwIyTurXUXZRW8dffRZvVpY0Ps-YMRA20tR8qKavpcaL1Flak4NJ0f2-2kwZ_PeC8E/exec";
-    
     const COMPANY_NAME = "HITECH_WORLD";
-    // ==========================================
-    // DATE LOCK CONFIGURATION
-    // Format: "YYYY-MM-DD" (Year-Month-Day)
-    const APP_EXPIRY_DATE = "2026-08-15"; // Is date ko aap apne hisaab se change kar sakte hain
-    // ==========================================
+    const APP_EXPIRY_DATE = "2026-08-15"; 
     
     let currentCustomer = { name: "", mobile: "" };
     let cart = {};
@@ -168,54 +163,52 @@
     let successModalObj = null;
 
     document.addEventListener("DOMContentLoaded", function() {
-      // --- DATE LOCK CHECK LOGIC ---
       const currentDate = new Date();
       const expiryDate = new Date(APP_EXPIRY_DATE);
-      
-      // Din ke aakhiri second tak valid rakhne ke liye
       expiryDate.setHours(23, 59, 59, 999);
 
       if (currentDate > expiryDate) {
-        // Agar date nikal gayi hai, toh direct Expired.html par bhej dein
         window.location.href = "Expired.html";
-        return; // Aage ka koi DOM ya modal initialize nahi hoga
+        return; 
       }
-      // ------------------------------
 
       cartModalObj = new bootstrap.Modal(document.getElementById('cartModal'));
       successModalObj = new bootstrap.Modal(document.getElementById('successModal'));
     });
 
+    // ROBUST API CALL FUNCTION
     async function apiCall(action, params = {}, method = 'GET', body = null) {
       let url = `${SCRIPT_URL}?action=${action}`;
       Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
   
       const options = { 
         method: method,
-        // Yeh header zaroori hai CORS bypass karne ke liye
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8" 
-        }
+        redirect: 'follow' // Important for GAS 302 redirects
       };
   
-      if (body) {
-        options.body = JSON.stringify(body);
+      if (method === 'POST') {
+        options.headers = {
+          "Content-Type": "text/plain;charset=utf-8" 
+        };
+        if (body) {
+          options.body = JSON.stringify(body);
+        }
       }
   
-      const response = await fetch(url, options);
-      return await response.json();
-    }
-
-    async function apiCallold(action, params = {}, method = 'GET', body = null) {
-      let url = `${SCRIPT_URL}?action=${action}`;
-      Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
-      
-      const options = { method: method };
-      if (body) {
-        options.body = JSON.stringify(body);
+      try {
+        const response = await fetch(url, options);
+        const textData = await response.text(); 
+        
+        try {
+          return JSON.parse(textData);
+        } catch (e) {
+          console.error(`JSON Parse Failed for action ${action}. Server sent:`, textData);
+          throw new Error("Invalid format received from server");
+        }
+      } catch (error) {
+        console.error(`API Fetch Error for action ${action}:`, error);
+        throw error;
       }
-      const response = await fetch(url, options);
-      return await response.json();
     }
 
     async function handleLogin() {
@@ -247,7 +240,7 @@
       } catch(e) {
         btn.disabled = false;
         btn.innerText = "Continue";
-        errDiv.innerText = "Server Error. Please check SCRIPT_URL.";
+        errDiv.innerText = "Server connection error. Please check your internet or SCRIPT_URL.";
         errDiv.style.display = 'block';
       }
     }
@@ -256,14 +249,16 @@
       const container = document.getElementById('categoryPills');
       try {
         const res = await apiCall('getCategories');
-        if(res.success) {
+        if(res.success && res.data) {
           let html = `<button class="btn btn-primary active" onclick="setCategory('All', this)">All</button>`;
           res.data.forEach(cat => {
             html += `<button class="btn btn-outline-secondary" onclick="setCategory('${escapeHtml(cat)}', this)">${escapeHtml(cat).toUpperCase()}</button>`;
           });
           container.innerHTML = html;
         }
-      } catch(e) {}
+      } catch(e) {
+        console.error("Category Load Error:", e);
+      }
     }
 
     async function loadAllProducts() {
@@ -274,7 +269,7 @@
         allProducts = res.data || [];
         executeSearch();
       } catch(e) {
-        showCustomAlert("Error", "Error loading catalog.", false);
+        showCustomAlert("Error", "Error loading catalog. Please check your internet connection.", false);
       } finally {
         document.getElementById('loading').style.display = 'none';
       }
@@ -295,13 +290,19 @@
       const q = document.getElementById('searchInput').value.trim().toLowerCase();
       let filtered = allProducts.filter(p => {
         const matchesQuery = !q || p.name.toLowerCase().includes(q) || (p.code && p.code.toLowerCase().includes(q));
-        const matchesCat = activeCategory === 'All' || p.group.toUpperCase() === activeCategory.toUpperCase();
+        const matchesCat = activeCategory === 'All' || (p.group && p.group.toUpperCase() === activeCategory.toUpperCase());
         return matchesQuery && matchesCat;
       });
-      renderList(filtered);
+      
+      // OPTIMIZATION: Sirf top 100 render karein, taaki browser freeze na ho
+      const MAX_DISPLAY = 100;
+      const itemsToRender = filtered.slice(0, MAX_DISPLAY);
+      const hasMore = filtered.length > MAX_DISPLAY;
+      
+      renderList(itemsToRender, hasMore);
     }
 
-    function renderList(products) {
+    function renderList(products, hasMore) {
       const list = document.getElementById('productList');
       if(!products.length) {
         list.innerHTML = '<div class="text-center text-muted mt-5">No items found.</div>';
@@ -324,6 +325,11 @@
             </div>
           </div>`;
       });
+      
+      if(hasMore) {
+        html += `<div class="text-center text-muted my-3 small">Showing top 100 results. Use the search bar to find more specific items.</div>`;
+      }
+      
       list.innerHTML = html;
     }
 
@@ -426,7 +432,6 @@
           cart = {};
           updateCartUI();
           executeSearch();
-
           showCustomAlert(COMPANY_NAME, `Order #${res.vchno || ''} placed successfully!`, true);
         } else {
           showCustomAlert(COMPANY_NAME, "Order Failed: " + (res.message || "Could not save order"), false);
@@ -435,6 +440,7 @@
         btn.disabled = false;
         btn.innerText = "Place Order";
         showCustomAlert(COMPANY_NAME, "Server error, order could not be saved.", false);
+        console.error("Order Submit Error:", e);
       }
     }
 
