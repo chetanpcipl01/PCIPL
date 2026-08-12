@@ -249,7 +249,53 @@
           
           // Start background loading
           loadCategories();
-          loadAllProductsInBackground();
+          async function loadAllProductsInBackground() {
+      const loaderPill = document.getElementById('bgLoaderPill');
+      loaderPill.style.display = 'block'; 
+      
+      try {
+        const res = await apiCall('getProducts');
+        let rawData = res.data || [];
+        let data = [];
+        
+        // 🚀 BULLETPROOF CHECK: Dekho data chota Array hai ya purana Object
+        if (rawData.length > 0 && Array.isArray(rawData[0])) {
+          data = rawData.map(item => ({
+            name: item[0],
+            code: item[1],
+            group: item[2],
+            mrp: item[3]
+          }));
+        } else {
+          data = rawData; // Fail-safe
+        }
+        
+        // Sorting Group-wise then Name-wise
+        data.sort((a, b) => {
+          const groupA = (a.group || '').toUpperCase();
+          const groupB = (b.group || '').toUpperCase();
+          if (groupA < groupB) return -1;
+          if (groupA > groupB) return 1;
+          
+          const nameA = (a.name || '').toUpperCase();
+          const nameB = (b.name || '').toUpperCase();
+          if (nameA < nameB) return -1;
+          if (nameA > nameB) return 1;
+          
+          return 0;
+        });
+        
+        allProducts = data;
+        executeSearch(); 
+        
+      } catch(e) {
+        console.error("Product Load Error:", e);
+        showCustomAlert("Error", "Could not load products. Please refresh.", false);
+      } finally {
+        loaderPill.style.display = 'none'; 
+      }
+    }
+          loadAllProductsInBackgroundold();
         } else {
           errDiv.innerText = res.message || "Mobile number not registered.";
           errDiv.style.display = 'block';
