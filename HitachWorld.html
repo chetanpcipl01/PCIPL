@@ -407,8 +407,38 @@
         }
       }
     }
-
-    async function submitOrder() {
+async function submitOrder() {
+      const btn = document.getElementById('placeOrderBtn');
+      btn.disabled = true;
+      btn.innerText = "Saving...";
+      const payload = {
+        cart: Object.values(cart),
+        customerName: currentCustomer.name,
+        mobile: currentCustomer.mobile
+      };
+      try {
+        const res = await apiCall('saveOrderData', {}, 'POST', payload);
+        btn.disabled = false;
+        btn.innerText = "Place Order";
+        if(res && res.success) {
+          cartModalObj.hide();
+          cart = {};
+          updateCartUI();
+          executeSearch(); 
+          setTimeout(() => { showCustomAlert(COMPANY_NAME, `Order #${res.vchno || ''} placed successfully!`, true); }, 300);
+        } else {
+          cartModalObj.hide();
+          setTimeout(() => { showCustomAlert(COMPANY_NAME, "Order Failed: " + (res.message || "Could not save order"), false); }, 300);
+        }
+      } catch(e) {
+        console.error("Submit Order Error:", e); // Console me exact error print hoga
+        btn.disabled = false;
+        btn.innerText = "Place Order";
+        cartModalObj.hide();
+        setTimeout(() => { showCustomAlert(COMPANY_NAME, "Server response error: " + e.message, false); }, 300);
+      }
+    }
+    async function submitOrderOLD() {
       const btn = document.getElementById('placeOrderBtn');
       btn.disabled = true;
       btn.innerText = "Saving...";
