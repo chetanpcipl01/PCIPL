@@ -132,7 +132,6 @@
   
   <script>
     // ==========================================
-    // YAHAN APNA NAYA URL DAALNA MAT BHULNA 
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzUY_CkanMonCc4WgoRLmQeBkJyhmRv8_1SX6hxuX2Oodn6IyA4sKQedCSnCl4SaeLi/exec";
     // ==========================================
     
@@ -204,7 +203,6 @@
           document.getElementById('loginSection').style.display = 'none';
           document.getElementById('catalogSection').style.display = 'block';
           document.getElementById('customerHeaderName').innerText = currentCustomer.name;
-          loadCategories();
           loadAllProductsInBackground();
         } else {
           errDiv.innerText = res.message || "Mobile number not registered.";
@@ -218,36 +216,28 @@
       }
     }
 
-    async function loadCategories() {
-      const container = document.getElementById('categoryPills');
-      try {
-        const res = await apiCall('getCategories');
-        if(res.success && res.data) {
-          let html = `<button class="btn btn-primary active" onclick="setCategory('All', this)">All</button>`;
-          res.data.forEach(cat => {
-            html += `<button class="btn btn-outline-secondary" onclick="setCategory('${escapeHtml(cat)}', this)">${escapeHtml(cat).toUpperCase()}</button>`;
-          });
-          container.innerHTML = html;
-        }
-      } catch(e) {}
-    }
-
     async function loadAllProductsInBackground() {
       const loaderPill = document.getElementById('bgLoaderPill');
-      loaderPill.style.display = 'block'; 
+      if (loaderPill) loaderPill.style.display = 'block'; 
+      
       try {
-        const res = await apiCall('getProducts');
-        let rawData = res.data || [];
-        let data = [];
+        // CDN URL se compressed JSON fetch karna
+        const jsonUrl = `https://cdn.jsdelivr.net/gh/chetanpcipl01/PCIPL@main/productsHTW.json?v=${new Date().getTime()}`;
         
-        // CRITICAL FIX: Array se Object me badalna (Shrunk data handler)
-        if (rawData.length > 0 && Array.isArray(rawData[0])) {
-          data = rawData.map(item => ({ name: item[0], code: item[1], group: item[2], mrp: item[3] }));
-        } else {
-          data = rawData; 
-        }
+        const response = await fetch(jsonUrl);
+        if (!response.ok) throw new Error("JSON fetch failed");
         
-        // Sorting
+        const rawData = await response.json();
+        
+        // Array [Name, Code, Group, MRP] ko Object me map karna
+        let data = rawData.map(item => ({ 
+          name: item[0], 
+          code: item[1], 
+          group: item[2], 
+          mrp: item[3] 
+        }));
+        
+        // Group aur Name wise sorting
         data.sort((a, b) => {
           const groupA = (a.group || '').toUpperCase();
           const groupB = (b.group || '').toUpperCase();
@@ -261,12 +251,27 @@
         });
         
         allProducts = data;
+        buildCategoryPills(data);
         executeSearch(); 
       } catch(e) {
+        console.error("Error loading products:", e);
         showCustomAlert("Error", "Could not load products. Please refresh.", false);
       } finally {
-        loaderPill.style.display = 'none'; 
+        if (loaderPill) loaderPill.style.display = 'none'; 
       }
+    }
+
+    function buildCategoryPills(data) {
+      const container = document.getElementById('categoryPills');
+      if (!container) return;
+      
+      const groups = [...new Set(data.map(p => p.group).filter(Boolean))].sort();
+      let html = `<button class="btn btn-primary active" onclick="setCategory('All', this)">All</button>`;
+      
+      groups.forEach(cat => {
+        html += `<button class="btn btn-outline-secondary" onclick="setCategory('${escapeHtml(cat)}', this)">${escapeHtml(cat).toUpperCase()}</button>`;
+      });
+      container.innerHTML = html;
     }
 
     function setCategory(cat, btn) {
