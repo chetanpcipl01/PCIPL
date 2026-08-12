@@ -27,8 +27,7 @@
     .cart-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); display: none; align-items: center; justify-content: space-between; padding: 12px 24px; width: 92%; max-width: 500px; z-index: 1000; }
     .cart-badge { position: absolute; top: -6px; right: -6px; background: #e74c3c; color: #fff; font-size: 0.7rem; font-weight: 700; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
 
-    /* Modal Fix */
-    .modal-backdrop { opacity: 0.4 !important; }
+    .modal-backdrop { opacity: 0.5 !important; }
     .modal-backdrop + .modal-backdrop { display: none !important; }
     
     /* Background Loader Pill */
@@ -86,7 +85,11 @@
     <!-- Dynamic Category Pills -->
     <div id="categoryPills" class="d-flex gap-2 category-pills mb-3"></div>
 
-    <!-- Product List -->
+    <!-- Loading Spinner & Product List -->
+    <div id="loading" class="text-center my-5" style="display:none;">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="text-muted small mt-2">Loading catalog...</p>
+    </div>
     <div id="productList"></div>
     
     <!-- Infinite Scroll Loading Indicator -->
@@ -145,7 +148,7 @@
     </div>
   </div>
 
-  <!-- SECTION 5: CUSTOM SUCCESS MODAL -->
+  <!-- SECTION 5: CUSTOM SUCCESS/NOTIFICATION MODAL -->
   <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow text-center p-4">
@@ -153,7 +156,7 @@
           <div id="modalIconContainer" class="text-success mb-3">
             <i class="bi bi-check-circle-fill display-1"></i>
           </div>
-          <h4 class="fw-bold text-dark mb-2" id="firmNameHeader">HITECH_WORLD</h4>
+          <h4 class="fw-bold text-dark mb-2" id="firmNameHeader">Procure Consultancy</h4>
           <p class="text-muted fs-6 mb-4" id="successMessageText">Order placed successfully!</p>
           <button type="button" class="btn btn-primary px-5 py-2 rounded-pill fw-bold" data-bs-dismiss="modal">OK</button>
         </div>
@@ -166,11 +169,11 @@
   
   <script>
     // ==========================================
-    // YAHAN APNA NAYA SCRIPT URL DAALEIN
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzUY_CkanMonCc4WgoRLmQeBkJyhmRv8_1SX6hxuX2Oodn6IyA4sKQedCSnCl4SaeLi/exec"; 
+    // Yahan Apna Naya Google Apps Script wala URL Daalein (Jiske last me /exec ho)
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw8sR49QIjx2bMg4tCGwzx7XwVp6xFa9RhTwX_49nged_jHTMvf6c46NmJ2qmm-O7aZ-A/exec"; 
     // ==========================================
     
-    const COMPANY_NAME = "HITECH_WORLD";
+    const COMPANY_NAME = "Procure Consultancy India Pvt Ltd";
     const APP_EXPIRY_DATE = "2026-08-15"; 
     
     let currentCustomer = { name: "", mobile: "" };
@@ -180,7 +183,7 @@
     // LAZY LOADING VARIABLES
     let filteredData = []; 
     let displayedCount = 0;
-    const CHUNK_SIZE = 30; // Ek baar me kitne product load honge
+    const CHUNK_SIZE = 30; // Ek baar me 30 products load honge
     
     let activeCategory = 'All';
     let cartModalObj = null;
@@ -198,10 +201,24 @@
       cartModalObj = new bootstrap.Modal(document.getElementById('cartModal'));
       successModalObj = new bootstrap.Modal(document.getElementById('successModal'));
       
-      // INFINITE SCROLL LISTENER
+      // Cleanup backdrops
+      document.getElementById('successModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
+      document.getElementById('cartModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
+      
+      // Scroll listener
       window.addEventListener('scroll', handleScroll);
     });
 
+    function cleanupModalBackdrops() {
+      if (!document.querySelectorAll('.modal.show').length) {
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+      }
+    }
+
+    // GITHUB KE LIYE FETCH API (Google.script.run yahan nahi chalega)
     async function apiCall(action, params = {}, method = 'GET', body = null) {
       let url = `${SCRIPT_URL}?action=${action}`;
       Object.keys(params).forEach(k => url += `&${k}=${encodeURIComponent(params[k])}`);
@@ -242,60 +259,12 @@
         if(res && res.success) {
           currentCustomer = { name: res.customerName.toUpperCase(), mobile: mobile };
           
-          // UI switch immediately without blocking
           document.getElementById('loginSection').style.display = 'none';
           document.getElementById('catalogSection').style.display = 'block';
           document.getElementById('customerHeaderName').innerText = currentCustomer.name;
           
-          // Start background loading
           loadCategories();
-          async function loadAllProductsInBackground() {
-      const loaderPill = document.getElementById('bgLoaderPill');
-      loaderPill.style.display = 'block'; 
-      
-      try {
-        const res = await apiCall('getProducts');
-        let rawData = res.data || [];
-        let data = [];
-        
-        // 🚀 BULLETPROOF CHECK: Dekho data chota Array hai ya purana Object
-        if (rawData.length > 0 && Array.isArray(rawData[0])) {
-          data = rawData.map(item => ({
-            name: item[0],
-            code: item[1],
-            group: item[2],
-            mrp: item[3]
-          }));
-        } else {
-          data = rawData; // Fail-safe
-        }
-        
-        // Sorting Group-wise then Name-wise
-        data.sort((a, b) => {
-          const groupA = (a.group || '').toUpperCase();
-          const groupB = (b.group || '').toUpperCase();
-          if (groupA < groupB) return -1;
-          if (groupA > groupB) return 1;
-          
-          const nameA = (a.name || '').toUpperCase();
-          const nameB = (b.name || '').toUpperCase();
-          if (nameA < nameB) return -1;
-          if (nameA > nameB) return 1;
-          
-          return 0;
-        });
-        
-        allProducts = data;
-        executeSearch(); 
-        
-      } catch(e) {
-        console.error("Product Load Error:", e);
-        showCustomAlert("Error", "Could not load products. Please refresh.", false);
-      } finally {
-        loaderPill.style.display = 'none'; 
-      }
-    }
-          loadAllProductsInBackgroundold();
+          loadAllProductsInBackground();
         } else {
           errDiv.innerText = res.message || "Mobile number not registered.";
           errDiv.style.display = 'block';
@@ -324,26 +293,34 @@
 
     async function loadAllProductsInBackground() {
       const loaderPill = document.getElementById('bgLoaderPill');
-      loaderPill.style.display = 'block'; // Show background loader
+      loaderPill.style.display = 'block'; 
       
       try {
         const res = await apiCall('getProducts');
-        let data = res.data || [];
+        let rawData = res.data || [];
+        let data = [];
         
-        // ============================================
-        // SORTING LOGIC: Group wise, then Name wise (A-Z)
-        // ============================================
+        // 🚀 GITHUB PAR DATA SHRINKING HANDLING
+        if (rawData.length > 0 && Array.isArray(rawData[0])) {
+          data = rawData.map(item => ({
+            name: item[0],
+            code: item[1],
+            group: item[2],
+            mrp: item[3]
+          }));
+        } else {
+          data = rawData; 
+        }
+        
+        // Sorting
         data.sort((a, b) => {
           const groupA = (a.group || '').toUpperCase();
           const groupB = (b.group || '').toUpperCase();
-          
           if (groupA < groupB) return -1;
           if (groupA > groupB) return 1;
           
-          // If groups are same, sort by name
           const nameA = (a.name || '').toUpperCase();
           const nameB = (b.name || '').toUpperCase();
-          
           if (nameA < nameB) return -1;
           if (nameA > nameB) return 1;
           
@@ -351,12 +328,13 @@
         });
         
         allProducts = data;
-        executeSearch(); // Ready to display
+        executeSearch(); 
         
       } catch(e) {
+        console.error("Product Load Error:", e);
         showCustomAlert("Error", "Could not load products. Please refresh.", false);
       } finally {
-        loaderPill.style.display = 'none'; // Hide loader
+        loaderPill.style.display = 'none'; 
       }
     }
 
@@ -374,14 +352,12 @@
     function executeSearch() {
       const q = document.getElementById('searchInput').value.trim().toLowerCase();
       
-      // Filter the main sorted array
       filteredData = allProducts.filter(p => {
         const matchesQuery = !q || p.name.toLowerCase().includes(q) || (p.code && p.code.toLowerCase().includes(q));
         const matchesCat = activeCategory === 'All' || (p.group && p.group.toUpperCase() === activeCategory.toUpperCase());
         return matchesQuery && matchesCat;
       });
       
-      // Reset DOM and Counters for lazy loading
       document.getElementById('productList').innerHTML = '';
       document.getElementById('endOfList').style.display = 'none';
       displayedCount = 0;
@@ -391,14 +367,11 @@
         return;
       }
       
-      renderNextChunk(); // Load the first 30 items
+      renderNextChunk(); 
     }
 
-    // ============================================
-    // LAZY LOADING LOGIC (Render items in chunks)
-    // ============================================
     function renderNextChunk() {
-      if (displayedCount >= filteredData.length) return; // All loaded
+      if (displayedCount >= filteredData.length) return; 
       
       const list = document.getElementById('productList');
       const chunk = filteredData.slice(displayedCount, displayedCount + CHUNK_SIZE);
@@ -421,7 +394,6 @@
           </div>`;
       });
       
-      // Append to list without breaking existing inputs
       list.insertAdjacentHTML('beforeend', html);
       displayedCount += CHUNK_SIZE;
       
@@ -431,7 +403,6 @@
     }
 
     function handleScroll() {
-      // Check if user scrolled near the bottom of the page
       if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 400) {
         if (document.getElementById('catalogSection').style.display === 'block') {
           renderNextChunk();
@@ -508,7 +479,6 @@
         if (cart[id].qty <= 0) delete cart[id];
         updateCartUI();
         
-        // Refresh visible inputs
         const inputs = document.querySelectorAll('.qty-input');
         inputs.forEach(input => {
            const cardKey = input.getAttribute('oninput').match(/'([^']+)'/)[1];
@@ -545,15 +515,24 @@
           cartModalObj.hide();
           cart = {};
           updateCartUI();
-          executeSearch(); // reset view
-          showCustomAlert(COMPANY_NAME, `Order #${res.vchno || ''} placed successfully!`, true);
+          executeSearch(); 
+          
+          setTimeout(() => {
+            showCustomAlert(COMPANY_NAME, `Order #${res.vchno || ''} placed successfully!`, true);
+          }, 300);
         } else {
-          showCustomAlert(COMPANY_NAME, "Order Failed: " + (res.message || "Could not save order"), false);
+          cartModalObj.hide();
+          setTimeout(() => {
+            showCustomAlert(COMPANY_NAME, "Order Failed: " + (res.message || "Could not save order"), false);
+          }, 300);
         }
       } catch(e) {
         btn.disabled = false;
         btn.innerText = "Place Order";
-        showCustomAlert(COMPANY_NAME, "Server error, order could not be saved.", false);
+        cartModalObj.hide();
+        setTimeout(() => {
+          showCustomAlert(COMPANY_NAME, "Server error, order could not be saved.", false);
+        }, 300);
       }
     }
 
@@ -569,6 +548,7 @@
         iconContainer.className = "text-danger mb-3";
         iconContainer.innerHTML = '<i class="bi bi-x-circle-fill display-1"></i>';
       }
+
       successModalObj.show();
     }
 
