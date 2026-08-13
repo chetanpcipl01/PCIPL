@@ -4,6 +4,50 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Product Catalog</title>
+  
+  <!-- ========================================== -->
+  <!-- EXPIRY DATE CHECK -->
+  <!-- ========================================== -->
+  <script>
+    const expiryDate = new Date("2026-08-16T00:00:00");
+    const currentDate = new Date();
+    
+    if (currentDate >= expiryDate) {
+      window.location.replace("https://chetanpcipl01.github.io/PCIPL/Expired.html");
+    }
+  </script>
+
+  <!-- ========================================== -->
+  <!-- INSPECT ELEMENT & RIGHT CLICK DISABLE SCRIPT -->
+  <!-- ========================================== -->
+  <script>
+    // Right Click Disable
+    document.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+    });
+
+    // Keyboard Shortcuts Disable (F12, Ctrl+Shift+I, Ctrl+U, etc.)
+    document.onkeydown = function(e) {
+      if (e.key === 'F12' || e.keyCode === 123) {
+        e.preventDefault();
+        return false;
+      }
+      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) {
+        e.preventDefault();
+        return false;
+      }
+      if (e.ctrlKey && (e.key === 'U' || e.key === 'u')) {
+        e.preventDefault();
+        return false;
+      }
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+        return false;
+      }
+    };
+  </script>
+  <!-- ========================================== -->
+  
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <style>
@@ -71,9 +115,6 @@
     </div>
     <div id="categoryPills" class="d-flex gap-2 category-pills mb-3"></div>
     <div id="productList"></div>
-    <div id="scrollLoader" class="text-center my-4 text-muted small" style="display:none;">
-      <div class="spinner-border spinner-border-sm me-2" role="status"></div> Loading more items...
-    </div>
   </div>
 
   <!-- CART BAR -->
@@ -132,7 +173,7 @@
   
   <script>
     // ==========================================
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzUY_CkanMonCc4WgoRLmQeBkJyhmRv8_1SX6hxuX2Oodn6IyA4sKQedCSnCl4SaeLi/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz-1AquDoaS8xUOwoNvlu9erh1IscxkEcRtvCsBSyUriyXmOwYcDlodQHnVDLr7lqby/exec";
     // ==========================================
     
     const COMPANY_NAME = "Procure Consultancy India Pvt Ltd";
@@ -143,17 +184,25 @@
     let cartModalObj = null;
     let successModalObj = null;
 
-    // LAZY LOAD VARIABLES
-    let filteredData = [];
-    let displayedCount = 0;
-    const CHUNK_SIZE = 30;
-
     document.addEventListener("DOMContentLoaded", function() {
       cartModalObj = new bootstrap.Modal(document.getElementById('cartModal'));
       successModalObj = new bootstrap.Modal(document.getElementById('successModal'));
       document.getElementById('successModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
       document.getElementById('cartModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
-      window.addEventListener('scroll', handleScroll);
+
+      // ==========================================
+      // CHECK LOCAL STORAGE FOR AUTO-LOGIN
+      // ==========================================
+      const savedMobile = localStorage.getItem("htw_mobile");
+      const savedName = localStorage.getItem("htw_name");
+      
+      if (savedMobile && savedName) {
+        currentCustomer = { name: savedName, mobile: savedMobile };
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('catalogSection').style.display = 'block';
+        document.getElementById('customerHeaderName').innerText = currentCustomer.name;
+        loadAllProductsInBackground();
+      }
     });
 
     function cleanupModalBackdrops() {
@@ -200,6 +249,13 @@
         btn.innerText = "Continue";
         if(res && res.success) {
           currentCustomer = { name: res.customerName.toUpperCase(), mobile: mobile };
+          
+          // ==========================================
+          // SAVE TO LOCAL STORAGE
+          // ==========================================
+          localStorage.setItem("htw_mobile", currentCustomer.mobile);
+          localStorage.setItem("htw_name", currentCustomer.name);
+
           document.getElementById('loginSection').style.display = 'none';
           document.getElementById('catalogSection').style.display = 'block';
           document.getElementById('customerHeaderName').innerText = currentCustomer.name;
@@ -221,15 +277,13 @@
       if (loaderPill) loaderPill.style.display = 'block'; 
       
       try {
-        // CDN URL se compressed JSON fetch karna
-        const jsonUrl = `https://cdn.jsdelivr.net/gh/chetanpcipl01/PCIPL@main/productsHTWnew.json?v=${new Date().getTime()}`;
+        const jsonUrl = `https://cdn.jsdelivr.net/gh/chetanpcipl01/PCIPL@main/productsHTW.json?v=${new Date().getTime()}`;
         
         const response = await fetch(jsonUrl);
         if (!response.ok) throw new Error("JSON fetch failed");
         
         const rawData = await response.json();
         
-        // Array [Name, Code, Group, MRP] ko Object me map karna
         let data = rawData.map(item => ({ 
           name: item[0], 
           code: item[1], 
@@ -237,7 +291,6 @@
           mrp: item[3] 
         }));
         
-        // Group aur Name wise sorting
         data.sort((a, b) => {
           const groupA = (a.group || '').toUpperCase();
           const groupB = (b.group || '').toUpperCase();
@@ -287,28 +340,22 @@
 
     function executeSearch() {
       const q = document.getElementById('searchInput').value.trim().toLowerCase();
-      filteredData = allProducts.filter(p => {
+      
+      const filteredData = allProducts.filter(p => {
         const matchesQuery = !q || (p.name && p.name.toLowerCase().includes(q)) || (p.code && p.code.toLowerCase().includes(q));
         const matchesCat = activeCategory === 'All' || (p.group && p.group.toUpperCase() === activeCategory.toUpperCase());
         return matchesQuery && matchesCat;
       });
       
-      document.getElementById('productList').innerHTML = '';
-      displayedCount = 0;
+      const list = document.getElementById('productList');
       
       if (filteredData.length === 0 && allProducts.length > 0) {
-        document.getElementById('productList').innerHTML = '<div class="text-center text-muted mt-5">No items found.</div>';
+        list.innerHTML = '<div class="text-center text-muted mt-5">No items found.</div>';
         return;
       }
-      renderNextChunk(); 
-    }
-
-    function renderNextChunk() {
-      if (displayedCount >= filteredData.length) return; 
-      const list = document.getElementById('productList');
-      const chunk = filteredData.slice(displayedCount, displayedCount + CHUNK_SIZE);
+      
       let html = '';
-      chunk.forEach(p => {
+      filteredData.forEach(p => {
         const key = p.code || p.name;
         const qty = cart[key] ? cart[key].qty : '';
         html += `
@@ -324,16 +371,8 @@
             </div>
           </div>`;
       });
-      list.insertAdjacentHTML('beforeend', html);
-      displayedCount += CHUNK_SIZE;
-    }
-
-    function handleScroll() {
-      if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 400) {
-        if (document.getElementById('catalogSection').style.display === 'block') {
-          renderNextChunk();
-        }
-      }
+      
+      list.innerHTML = html;
     }
 
     function updateCart(id, name, mrp, val) {
@@ -407,7 +446,8 @@
         }
       }
     }
-async function submitOrder() {
+    
+    async function submitOrder() {
       const btn = document.getElementById('placeOrderBtn');
       btn.disabled = true;
       btn.innerText = "Saving...";
@@ -431,41 +471,11 @@ async function submitOrder() {
           setTimeout(() => { showCustomAlert(COMPANY_NAME, "Order Failed: " + (res.message || "Could not save order"), false); }, 300);
         }
       } catch(e) {
-        console.error("Submit Order Error:", e); // Console me exact error print hoga
+        console.error("Submit Order Error:", e);
         btn.disabled = false;
         btn.innerText = "Place Order";
         cartModalObj.hide();
         setTimeout(() => { showCustomAlert(COMPANY_NAME, "Server response error: " + e.message, false); }, 300);
-      }
-    }
-    async function submitOrderOLD() {
-      const btn = document.getElementById('placeOrderBtn');
-      btn.disabled = true;
-      btn.innerText = "Saving...";
-      const payload = {
-        cart: Object.values(cart),
-        customerName: currentCustomer.name,
-        mobile: currentCustomer.mobile
-      };
-      try {
-        const res = await apiCall('saveOrderData', {}, 'POST', payload);
-        btn.disabled = false;
-        btn.innerText = "Place Order";
-        if(res && res.success) {
-          cartModalObj.hide();
-          cart = {};
-          updateCartUI();
-          executeSearch(); 
-          setTimeout(() => { showCustomAlert(COMPANY_NAME, `Order #${res.vchno || ''} placed successfully!`, true); }, 300);
-        } else {
-          cartModalObj.hide();
-          setTimeout(() => { showCustomAlert(COMPANY_NAME, "Order Failed: " + (res.message || "Could not save order"), false); }, 300);
-        }
-      } catch(e) {
-        btn.disabled = false;
-        btn.innerText = "Place Order";
-        cartModalObj.hide();
-        setTimeout(() => { showCustomAlert(COMPANY_NAME, "Server error, order could not be saved.", false); }, 300);
       }
     }
 
@@ -488,6 +498,13 @@ async function submitOrder() {
       allProducts = [];
       updateCartUI();
       document.getElementById('mobileInput').value = '';
+      
+      // ==========================================
+      // CLEAR LOCAL STORAGE ON LOGOUT
+      // ==========================================
+      localStorage.removeItem("htw_mobile");
+      localStorage.removeItem("htw_name");
+
       document.getElementById('catalogSection').style.display = 'none';
       document.getElementById('loginSection').style.display = 'block';
     }
