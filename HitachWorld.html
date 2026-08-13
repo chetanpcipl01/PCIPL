@@ -4,6 +4,50 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Product Catalog</title>
+  
+  <!-- ========================================== -->
+  <!-- EXPIRY DATE CHECK -->
+  <!-- ========================================== -->
+  <script>
+    const expiryDate = new Date("2026-08-16T00:00:00");
+    const currentDate = new Date();
+    
+    if (currentDate >= expiryDate) {
+      window.location.replace("https://chetanpcipl01.github.io/PCIPL/Expired.html");
+    }
+  </script>
+
+  <!-- ========================================== -->
+  <!-- INSPECT ELEMENT & RIGHT CLICK DISABLE SCRIPT -->
+  <!-- ========================================== -->
+  <script>
+    // Right Click Disable
+    document.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+    });
+
+    // Keyboard Shortcuts Disable (F12, Ctrl+Shift+I, Ctrl+U, etc.)
+    document.onkeydown = function(e) {
+      if (e.key === 'F12' || e.keyCode === 123) {
+        e.preventDefault();
+        return false;
+      }
+      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) {
+        e.preventDefault();
+        return false;
+      }
+      if (e.ctrlKey && (e.key === 'U' || e.key === 'u')) {
+        e.preventDefault();
+        return false;
+      }
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+        return false;
+      }
+    };
+  </script>
+  <!-- ========================================== -->
+  
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <style>
@@ -154,6 +198,20 @@
       document.getElementById('successModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
       document.getElementById('cartModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
       window.addEventListener('scroll', handleScroll);
+
+      // ==========================================
+      // CHECK LOCAL STORAGE FOR AUTO-LOGIN
+      // ==========================================
+      const savedMobile = localStorage.getItem("htw_mobile");
+      const savedName = localStorage.getItem("htw_name");
+      
+      if (savedMobile && savedName) {
+        currentCustomer = { name: savedName, mobile: savedMobile };
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('catalogSection').style.display = 'block';
+        document.getElementById('customerHeaderName').innerText = currentCustomer.name;
+        loadAllProductsInBackground();
+      }
     });
 
     function cleanupModalBackdrops() {
@@ -200,6 +258,13 @@
         btn.innerText = "Continue";
         if(res && res.success) {
           currentCustomer = { name: res.customerName.toUpperCase(), mobile: mobile };
+          
+          // ==========================================
+          // SAVE TO LOCAL STORAGE
+          // ==========================================
+          localStorage.setItem("htw_mobile", currentCustomer.mobile);
+          localStorage.setItem("htw_name", currentCustomer.name);
+
           document.getElementById('loginSection').style.display = 'none';
           document.getElementById('catalogSection').style.display = 'block';
           document.getElementById('customerHeaderName').innerText = currentCustomer.name;
@@ -221,7 +286,6 @@
       if (loaderPill) loaderPill.style.display = 'block'; 
       
       try {
-        // CDN URL se compressed JSON fetch karna
         const jsonUrl = `https://cdn.jsdelivr.net/gh/chetanpcipl01/PCIPL@main/productsHTW.json?v=${new Date().getTime()}`;
         
         const response = await fetch(jsonUrl);
@@ -229,7 +293,6 @@
         
         const rawData = await response.json();
         
-        // Array [Name, Code, Group, MRP] ko Object me map karna
         let data = rawData.map(item => ({ 
           name: item[0], 
           code: item[1], 
@@ -237,7 +300,6 @@
           mrp: item[3] 
         }));
         
-        // Group aur Name wise sorting
         data.sort((a, b) => {
           const groupA = (a.group || '').toUpperCase();
           const groupB = (b.group || '').toUpperCase();
@@ -407,7 +469,8 @@
         }
       }
     }
-async function submitOrder() {
+    
+    async function submitOrder() {
       const btn = document.getElementById('placeOrderBtn');
       btn.disabled = true;
       btn.innerText = "Saving...";
@@ -431,41 +494,11 @@ async function submitOrder() {
           setTimeout(() => { showCustomAlert(COMPANY_NAME, "Order Failed: " + (res.message || "Could not save order"), false); }, 300);
         }
       } catch(e) {
-        console.error("Submit Order Error:", e); // Console me exact error print hoga
+        console.error("Submit Order Error:", e);
         btn.disabled = false;
         btn.innerText = "Place Order";
         cartModalObj.hide();
         setTimeout(() => { showCustomAlert(COMPANY_NAME, "Server response error: " + e.message, false); }, 300);
-      }
-    }
-    async function submitOrderOLD() {
-      const btn = document.getElementById('placeOrderBtn');
-      btn.disabled = true;
-      btn.innerText = "Saving...";
-      const payload = {
-        cart: Object.values(cart),
-        customerName: currentCustomer.name,
-        mobile: currentCustomer.mobile
-      };
-      try {
-        const res = await apiCall('saveOrderData', {}, 'POST', payload);
-        btn.disabled = false;
-        btn.innerText = "Place Order";
-        if(res && res.success) {
-          cartModalObj.hide();
-          cart = {};
-          updateCartUI();
-          executeSearch(); 
-          setTimeout(() => { showCustomAlert(COMPANY_NAME, `Order #${res.vchno || ''} placed successfully!`, true); }, 300);
-        } else {
-          cartModalObj.hide();
-          setTimeout(() => { showCustomAlert(COMPANY_NAME, "Order Failed: " + (res.message || "Could not save order"), false); }, 300);
-        }
-      } catch(e) {
-        btn.disabled = false;
-        btn.innerText = "Place Order";
-        cartModalObj.hide();
-        setTimeout(() => { showCustomAlert(COMPANY_NAME, "Server error, order could not be saved.", false); }, 300);
       }
     }
 
@@ -488,6 +521,13 @@ async function submitOrder() {
       allProducts = [];
       updateCartUI();
       document.getElementById('mobileInput').value = '';
+      
+      // ==========================================
+      // CLEAR LOCAL STORAGE ON LOGOUT
+      // ==========================================
+      localStorage.removeItem("htw_mobile");
+      localStorage.removeItem("htw_name");
+
       document.getElementById('catalogSection').style.display = 'none';
       document.getElementById('loginSection').style.display = 'block';
     }
