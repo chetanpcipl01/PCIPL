@@ -365,7 +365,49 @@
       }
       renderNextChunk(); 
     }
-function renderNextChunk() {
+    function renderNextChunk() {
+      if (displayedCount >= filteredData.length) return; 
+      const list = document.getElementById('productList');
+      const chunk = filteredData.slice(displayedCount, displayedCount + CHUNK_SIZE);
+      let html = '';
+      
+      chunk.forEach(p => {
+        const key = p.code || p.name;
+        const qty = cart[key] ? cart[key].qty : '';
+        
+        // --- Stock Check Logic ---
+        const stockNum = parseFloat(p.stock) || 0;
+        let stockHtml = '';
+        let disableAttr = ''; // Naya variable input ko disable karne ke liye
+        
+        if (stockNum <= 0) {
+          // Negative or 0 stock -> Red color "Out of Stock"
+          stockHtml = `<div class="text-danger mt-1 fw-bold" style="font-size: 0.8rem;">Out of Stock</div>`;
+          disableAttr = 'disabled'; // Agar out of stock hai, toh disabled attribute set karein
+        } else {
+          // Positive stock -> Green color showing stock value
+          stockHtml = `<div class="text-success mt-1 fw-bold" style="font-size: 0.8rem;">Stock: ${p.stock}</div>`;
+        }
+        
+        html += `
+          <div class="list-card d-flex justify-content-between align-items-center">
+            <div>
+              <div class="product-group-text">${escapeHtml(p.group)} ${p.code ? '- ' + escapeHtml(p.code) : ''}</div>
+              <div class="product-name-text">${escapeHtml(p.name)}</div>
+              ${stockHtml}
+            </div>
+            <div class="d-flex align-items-center gap-3">
+              <span class="price-text">₹${parseFloat(p.mrp).toFixed(1)}</span>
+              <input type="number" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}" ${disableAttr} 
+                oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
+            </div>
+          </div>`;
+      });
+      
+      list.insertAdjacentHTML('beforeend', html);
+      displayedCount += CHUNK_SIZE;
+    }
+function renderNextChunkOLD18() {
       if (displayedCount >= filteredData.length) return; 
       const list = document.getElementById('productList');
       const chunk = filteredData.slice(displayedCount, displayedCount + CHUNK_SIZE);
