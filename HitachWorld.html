@@ -316,6 +316,7 @@
         allProducts = data;
         buildCategoryPills(data);
         executeSearch(); 
+        startLiveStockSync();
       } catch(e) {
         console.error("Error loading products:", e);
         showCustomAlert("Error", "Could not load products. Please refresh.", false);
