@@ -456,7 +456,7 @@
           ${stockHtml}
         </div>
         <div class="d-flex align-items-center gap-3">
-          <span class="price-text">₹${parseFloat(p.mrp).toFixed(1)}</span>
+          <span class="price-text">₹${parseFloat(p.mrp).toFixed(2)}</span>
           <input type="number" id="qty-input-${cleanKey}" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}" ${disableAttr} 
             oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
         </div>
@@ -498,7 +498,7 @@
               ${stockHtml}
             </div>
             <div class="d-flex align-items-center gap-3">
-              <span class="price-text">₹${parseFloat(p.mrp).toFixed(1)}</span>
+              <span class="price-text">₹${parseFloat(p.mrp).toFixed(2)}</span>
               <input type="number" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}" ${disableAttr} 
                 oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
             </div>
@@ -537,7 +537,7 @@ function renderNextChunkOLD18() {
               ${stockHtml}
             </div>
             <div class="d-flex align-items-center gap-3">
-              <span class="price-text">₹${parseFloat(p.mrp).toFixed(1)}</span>
+              <span class="price-text">₹${parseFloat(p.mrp).toFixed(2)}</span>
               <input type="number" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}"
                 oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
             </div>
@@ -565,7 +565,7 @@ function renderNextChunkOLD18() {
                  </div>
             </div>
             <div class="d-flex align-items-center gap-3">
-              <span class="price-text">₹${parseFloat(p.mrp).toFixed(1)}</span>
+              <span class="price-text">₹${parseFloat(p.mrp).toFixed(2)}</span>
               <input type="number" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}"
                 oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
             </div>
@@ -621,7 +621,7 @@ function renderNextChunkOLD18() {
           <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
             <div>
               <div class="fw-bold small">${escapeHtml(item.name)}</div>
-              <div class="text-muted extra-small">₹${item.mrp} × ${item.qty} = <span class="text-success fw-bold">₹${itemTotal.toFixed(1)}</span></div>
+              <div class="text-muted extra-small">₹${item.mrp} × ${item.qty} = <span class="text-success fw-bold">₹${itemTotal.toFixed(2)}</span></div>
             </div>
             <div class="d-flex align-items-center gap-1">
               <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="adjustModalQty('${id}', -1)">-</button>
@@ -633,7 +633,7 @@ function renderNextChunkOLD18() {
       container.innerHTML = html;
       document.getElementById('summaryTotalItems').innerText = Object.keys(cart).length;
       document.getElementById('summaryTotalQty').innerText = totalQty;
-      document.getElementById('summaryTotalAmount').innerText = `₹${totalAmt.toFixed(1)}`;
+      document.getElementById('summaryTotalAmount').innerText = `₹${totalAmt.toFixed(2)}`;
     }
 
     function openCartModal() {
