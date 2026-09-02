@@ -405,8 +405,35 @@
       btn.classList.add('btn-primary', 'active');
       executeSearch();
     }
+function executeSearch() {
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      
+      // SMART SEARCH LOGIC: Split the query by spaces into an array of words
+      const searchTerms = q.split(/\s+/).filter(term => term.length > 0);
 
-    function executeSearch() {
+      filteredData = allProducts.filter(p => {
+        
+        // Har ek search term product ke name ya code me hona chahiye (AND condition)
+        const matchesQuery = searchTerms.length === 0 || searchTerms.every(term => 
+          (p.name && p.name.toLowerCase().includes(term)) || 
+          (p.code && p.code.toLowerCase().includes(term))
+        );
+        
+        const matchesCat = activeCategory === 'All' || (p.group && p.group.toUpperCase() === activeCategory.toUpperCase());
+        
+        return matchesQuery && matchesCat;
+      });
+      
+      document.getElementById('productList').innerHTML = '';
+      displayedCount = 0;
+      
+      if (filteredData.length === 0 && allProducts.length > 0) {
+        document.getElementById('productList').innerHTML = '<div class="text-center text-muted mt-5">No items found.</div>';
+        return;
+      }
+      renderNextChunk(); 
+    }
+    function executeSearchold29() {
       const q = document.getElementById('searchInput').value.trim().toLowerCase();
       filteredData = allProducts.filter(p => {
         const matchesQuery = !q || (p.name && p.name.toLowerCase().includes(q)) || (p.code && p.code.toLowerCase().includes(q));
