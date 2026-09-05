@@ -54,8 +54,6 @@
     body { background-color: #f4f7f6; font-family: 'Segoe UI', Roboto, sans-serif; min-height: 100vh; }
     .login-card { max-width: 420px; margin: 80px auto; border-radius: 16px; border: none; }
     .catalog-container { max-width: 800px; margin: 0 auto; padding-bottom: 110px; }
-    .category-pills { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 5px; }
-    .category-pills .btn { border-radius: 20px; white-space: nowrap; font-size: 0.85rem; font-weight: 500; }
     .list-card { background: #fff; border-radius: 10px; border: 1px solid #eef2f5; padding: 14px; margin-bottom: 10px; transition: box-shadow 0.2s; }
     .list-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     .product-group-text { color: #e67e22; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
@@ -67,6 +65,26 @@
     .modal-backdrop { opacity: 0.5 !important; }
     .modal-backdrop + .modal-backdrop { display: none !important; }
     #bgLoaderPill { display: none; position: fixed; top: 15px; left: 50%; transform: translateX(-50%); z-index: 1050; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    
+    /* CUSTOM CSS FOR GROUP MODAL BUTTONS */
+    .group-grid-btn {
+      background-color: #fff;
+      border: 1px solid #dee2e6;
+      color: #333;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      width: 100%;
+      display: block;
+      white-space: normal;
+      transition: all 0.2s;
+    }
+    .group-grid-btn.active-group {
+      background-color: #2196f3;
+      color: #fff;
+      border-color: #2196f3;
+    }
   </style>
 </head>
 <body>
@@ -109,12 +127,19 @@
         <i class="bi bi-box-arrow-right fs-5"></i>
       </button>
     </div>
+    
     <div class="input-group mb-3 shadow-sm rounded">
       <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
       <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Search items..." oninput="executeSearch()">
     </div>
-    <div id="categoryPills" class="d-flex gap-2 category-pills mb-3"></div>
+    
+    <!-- COMBO BOX TRIGGER FOR GROUP FILTER -->
+    <div id="categoryPills" class="mb-3">
+      <!-- Injected by JavaScript -->
+    </div>
+    
     <div id="productList"></div>
+    
     <div id="scrollLoader" class="text-center my-4 text-muted small" style="display:none;">
       <div class="spinner-border spinner-border-sm me-2" role="status"></div> Loading more items...
     </div>
@@ -134,7 +159,28 @@
     <button class="btn btn-primary px-4 rounded-pill fw-semibold" onclick="openCartModal()">Continue</button>
   </div>
 
-  <!-- MODALS -->
+  <!-- GROUP FILTER MODAL -->
+  <div class="modal fade" id="groupFilterModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+      <div class="modal-content border-0 shadow-lg" style="height: 85vh; border-radius: 16px;">
+        <div class="modal-header bg-light border-bottom">
+          <h6 class="modal-title fw-bold text-dark m-0">ALL ITEM GROUPS</h6>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+        <div class="p-2 bg-white border-bottom">
+          <!-- SMART SEARCH FOR GROUPS -->
+          <input type="text" id="groupSearchInput" class="form-control form-control-sm" placeholder="Smart search groups..." onkeyup="filterGroupsInModal()">
+        </div>
+        <div class="modal-body bg-white p-3">
+          <div id="modalCategoryGrid" class="row g-2">
+            <!-- Grid buttons will be injected here by Javascript -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CART MODAL -->
   <div class="modal fade" id="cartModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow">
@@ -159,6 +205,7 @@
     </div>
   </div>
 
+  <!-- SUCCESS MODAL -->
   <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow text-center p-4">
@@ -195,8 +242,18 @@
     document.addEventListener("DOMContentLoaded", function() {
       cartModalObj = new bootstrap.Modal(document.getElementById('cartModal'));
       successModalObj = new bootstrap.Modal(document.getElementById('successModal'));
+      
+      // Cleanup events
       document.getElementById('successModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
       document.getElementById('cartModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
+      document.getElementById('groupFilterModal').addEventListener('hidden.bs.modal', cleanupModalBackdrops);
+      
+      // Clear group search input when modal opens
+      document.getElementById('groupFilterModal').addEventListener('show.bs.modal', function () {
+        document.getElementById('groupSearchInput').value = '';
+        filterGroupsInModal();
+      });
+
       window.addEventListener('scroll', handleScroll);
 
       // ==========================================
@@ -259,9 +316,6 @@
         if(res && res.success) {
           currentCustomer = { name: res.customerName.toUpperCase(), mobile: mobile };
           
-          // ==========================================
-          // SAVE TO LOCAL STORAGE
-          // ==========================================
           localStorage.setItem("htw_mobile", currentCustomer.mobile);
           localStorage.setItem("htw_name", currentCustomer.name);
 
@@ -324,119 +378,146 @@
         if (loaderPill) loaderPill.style.display = 'none'; 
       }
     }
+
     function startLiveStockSync() {
-  // Har 30 seconds (30000ms) mein stock check karega
-  setInterval(async () => {
-    try {
-      // Naya stock fetch karein (cache break karne ke liye timestamp lagaya hai)
-      const jsonUrl = `https://raw.githubusercontent.com/chetanpcipl01/PCIPL/main/productsHTW.json?v=${new Date().getTime()}`;
-      const response = await fetch(jsonUrl);
-      if (!response.ok) return;
-      
-      const rawData = await response.json();
-      
-      // Naye stock ka map banayein fast searching ke liye
-      const newStockMap = {};
-      rawData.forEach(item => {
-        const key = item[1] || item[0]; // code ya name
-        newStockMap[key] = parseFloat(item[4]) || 0;
-      });
-
-      // Existing products list ko update karein
-      allProducts.forEach(p => {
-        const key = p.code || p.name;
-        const currentLiveStock = newStockMap[key] !== undefined ? newStockMap[key] : 0;
-        
-        // Agar stock change hua hai, toh update karein
-        if (p.stock !== currentLiveStock) {
-          p.stock = currentLiveStock; 
+      setInterval(async () => {
+        try {
+          const jsonUrl = `https://raw.githubusercontent.com/chetanpcipl01/PCIPL/main/productsHTW.json?v=${new Date().getTime()}`;
+          const response = await fetch(jsonUrl);
+          if (!response.ok) return;
           
-          const cleanKey = key.replace(/[^a-zA-Z0-9]/g, '_');
-          const stockTextEl = document.getElementById(`stock-text-${cleanKey}`);
-          const qtyInputEl = document.getElementById(`qty-input-${cleanKey}`);
+          const rawData = await response.json();
+          
+          const newStockMap = {};
+          rawData.forEach(item => {
+            const key = item[1] || item[0];
+            newStockMap[key] = parseFloat(item[4]) || 0;
+          });
 
-          // Agar element screen par dikh raha hai toh turant change karein
-          if (stockTextEl && qtyInputEl) {
-            if (currentLiveStock <= 0) {
-              stockTextEl.className = 'text-danger mt-1 fw-bold';
-              stockTextEl.innerHTML = 'Out of Stock';
-              qtyInputEl.disabled = true;
+          allProducts.forEach(p => {
+            const key = p.code || p.name;
+            const currentLiveStock = newStockMap[key] !== undefined ? newStockMap[key] : 0;
+            
+            if (p.stock !== currentLiveStock) {
+              p.stock = currentLiveStock; 
               
-              // Optional: Agar user ne cart mein add kar rakha tha aur achanak out of stock ho gaya
-              if(cart[key]) {
-                  qtyInputEl.value = '';
-                  delete cart[key];
-                  updateCartUI();
-              }
-            } else {
-              stockTextEl.className = 'text-success mt-1 fw-bold';
-              stockTextEl.innerHTML = `Stock: ${currentLiveStock}`;
-              qtyInputEl.disabled = false;
-            }
-          }
-        }
-      });
-    } catch (e) {
-      console.log("Background stock sync failed temporarily.");
-    }
-  }, 30000); // 30000 ms = 30 Seconds. Aap chahein to isko 10000 (10 sec) bhi kar sakte hain.
-}
+              const cleanKey = key.replace(/[^a-zA-Z0-9]/g, '_');
+              const stockTextEl = document.getElementById(`stock-text-${cleanKey}`);
+              const qtyInputEl = document.getElementById(`qty-input-${cleanKey}`);
 
+              if (stockTextEl && qtyInputEl) {
+                if (currentLiveStock <= 0) {
+                  stockTextEl.className = 'text-danger mt-1 fw-bold';
+                  stockTextEl.innerHTML = 'Out of Stock';
+                  qtyInputEl.disabled = true;
+                  
+                  if(cart[key]) {
+                      qtyInputEl.value = '';
+                      delete cart[key];
+                      updateCartUI();
+                  }
+                } else {
+                  stockTextEl.className = 'text-success mt-1 fw-bold';
+                  stockTextEl.innerHTML = `Stock: ${currentLiveStock}`;
+                  qtyInputEl.disabled = false;
+                }
+              }
+            }
+          });
+        } catch (e) {
+          console.log("Background stock sync failed temporarily.");
+        }
+      }, 30000);
+    }
+
+    // ==========================================
+    // MODAL GROUP FILTER LOGIC (WITH SMART SEARCH)
+    // ==========================================
     function buildCategoryPills(data) {
       const container = document.getElementById('categoryPills');
-      if (!container) return;
+      const gridContainer = document.getElementById('modalCategoryGrid');
+      if (!container || !gridContainer) return;
       
       const groups = [...new Set(data.map(p => p.group).filter(Boolean))].sort();
-      let html = `<button class="btn btn-primary active" onclick="setCategory('All', this)">All</button>`;
       
-      groups.forEach(cat => {
-        html += `<button class="btn btn-outline-secondary" onclick="setCategory('${escapeHtml(cat)}', this)">${escapeHtml(cat).toUpperCase()}</button>`;
+      // 1. Create the Combo Box Trigger
+      let triggerHtml = `
+        <div class="form-select shadow-sm border-primary fw-semibold d-flex align-items-center justify-content-between" 
+             style="cursor:pointer; color: #2c3e50; background-color: #fff;" 
+             data-bs-toggle="modal" 
+             data-bs-target="#groupFilterModal">
+          <span id="groupFilterTriggerText">ALL (${data.length})</span>
+        </div>`;
+      container.innerHTML = triggerHtml;
+      
+      // 2. Populate the 2-Column Grid inside the Modal
+      let gridHtml = `
+        <div class="col-6 group-col">
+          <button class="group-grid-btn active-group" id="btn-group-All" onclick="selectGroupFromModal('All', 'ALL (${data.length})', 'btn-group-All')">
+            ALL (${data.length})
+          </button>
+        </div>`;
+      
+      groups.forEach((cat, index) => {
+        const count = data.filter(p => p.group === cat).length;
+        const btnId = 'btn-group-' + index;
+        gridHtml += `
+          <div class="col-6 group-col">
+            <button class="group-grid-btn" id="${btnId}" onclick="selectGroupFromModal('${escapeHtml(cat)}', '${escapeHtml(cat).toUpperCase()} (${count})', '${btnId}')">
+              ${escapeHtml(cat).toUpperCase()} (${count})
+            </button>
+          </div>`;
       });
-      container.innerHTML = html;
+      
+      gridContainer.innerHTML = gridHtml;
     }
 
-    function setCategory(cat, btn) {
-      activeCategory = cat;
-      document.querySelectorAll('#categoryPills .btn').forEach(b => {
-        b.classList.remove('btn-primary', 'active');
-        b.classList.add('btn-outline-secondary');
+    function selectGroupFromModal(cat, displayText, btnId) {
+      document.querySelectorAll('.group-grid-btn').forEach(btn => {
+        btn.classList.remove('active-group');
       });
-      btn.classList.remove('btn-outline-secondary');
-      btn.classList.add('btn-primary', 'active');
+      document.getElementById(btnId).classList.add('active-group');
+      
+      document.getElementById('groupFilterTriggerText').innerText = displayText;
+      
+      setCategory(cat);
+      
+      const modalEl = document.getElementById('groupFilterModal');
+      const modalInstance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+      modalInstance.hide();
+    }
+
+    function filterGroupsInModal() {
+      const q = document.getElementById('groupSearchInput').value.trim().toLowerCase();
+      const searchTerms = q.split(/\s+/).filter(term => term.length > 0);
+      const groupColumns = document.querySelectorAll('#modalCategoryGrid .group-col');
+
+      groupColumns.forEach(col => {
+        const btnText = col.innerText.toLowerCase();
+        const matches = searchTerms.length === 0 || searchTerms.every(term => btnText.includes(term));
+        
+        if (matches) {
+          col.style.display = '';
+        } else {
+          col.style.display = 'none';
+        }
+      });
+    }
+
+    function setCategory(cat) {
+      activeCategory = cat;
       executeSearch();
     }
-function executeSearch() {
+
+    function executeSearch() {
       const q = document.getElementById('searchInput').value.trim().toLowerCase();
-      
-      // SMART SEARCH LOGIC: Split the query by spaces into an array of words
       const searchTerms = q.split(/\s+/).filter(term => term.length > 0);
 
       filteredData = allProducts.filter(p => {
-        
-        // Har ek search term product ke name ya code me hona chahiye (AND condition)
         const matchesQuery = searchTerms.length === 0 || searchTerms.every(term => 
           (p.name && p.name.toLowerCase().includes(term)) || 
           (p.code && p.code.toLowerCase().includes(term))
         );
-        
-        const matchesCat = activeCategory === 'All' || (p.group && p.group.toUpperCase() === activeCategory.toUpperCase());
-        
-        return matchesQuery && matchesCat;
-      });
-      
-      document.getElementById('productList').innerHTML = '';
-      displayedCount = 0;
-      
-      if (filteredData.length === 0 && allProducts.length > 0) {
-        document.getElementById('productList').innerHTML = '<div class="text-center text-muted mt-5">No items found.</div>';
-        return;
-      }
-      renderNextChunk(); 
-    }
-    function executeSearchold29() {
-      const q = document.getElementById('searchInput').value.trim().toLowerCase();
-      filteredData = allProducts.filter(p => {
-        const matchesQuery = !q || (p.name && p.name.toLowerCase().includes(q)) || (p.code && p.code.toLowerCase().includes(q));
         const matchesCat = activeCategory === 'All' || (p.group && p.group.toUpperCase() === activeCategory.toUpperCase());
         return matchesQuery && matchesCat;
       });
@@ -450,50 +531,8 @@ function executeSearch() {
       }
       renderNextChunk(); 
     }
+    
     function renderNextChunk() {
-  if (displayedCount >= filteredData.length) return; 
-  const list = document.getElementById('productList');
-  const chunk = filteredData.slice(displayedCount, displayedCount + CHUNK_SIZE);
-  let html = '';
-  
-  chunk.forEach(p => {
-    const key = p.code || p.name;
-    const qty = cart[key] ? cart[key].qty : '';
-    
-    // Create a safe, space-free ID based on the key
-    const cleanKey = key.replace(/[^a-zA-Z0-9]/g, '_'); 
-    
-    // --- Stock Check Logic ---
-    const stockNum = parseFloat(p.stock) || 0;
-    let stockHtml = '';
-    let disableAttr = ''; 
-    
-    if (stockNum <= 0) {
-      stockHtml = `<div id="stock-text-${cleanKey}" class="text-danger mt-1 fw-bold" style="font-size: 0.8rem;">Out of Stock</div>`;
-      disableAttr = 'disabled'; 
-    } else {
-      stockHtml = `<div id="stock-text-${cleanKey}" class="text-success mt-1 fw-bold" style="font-size: 0.8rem;">Stock: ${p.stock}</div>`;
-    }
-    
-    html += `
-      <div class="list-card d-flex justify-content-between align-items-center">
-        <div>
-          <div class="product-group-text">${escapeHtml(p.group)} ${p.code ? '- ' + escapeHtml(p.code) : ''}</div>
-          <div class="product-name-text">${escapeHtml(p.name)}</div>
-          ${stockHtml}
-        </div>
-        <div class="d-flex align-items-center gap-3">
-          <span class="price-text">₹${parseFloat(p.mrp).toFixed(2)}</span>
-          <input type="number" id="qty-input-${cleanKey}" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}" ${disableAttr} 
-            oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
-        </div>
-      </div>`;
-  });
-  
-  list.insertAdjacentHTML('beforeend', html);
-  displayedCount += CHUNK_SIZE;
-}
-    function renderNextChunkOLD19AUG() {
       if (displayedCount >= filteredData.length) return; 
       const list = document.getElementById('productList');
       const chunk = filteredData.slice(displayedCount, displayedCount + CHUNK_SIZE);
@@ -502,19 +541,16 @@ function executeSearch() {
       chunk.forEach(p => {
         const key = p.code || p.name;
         const qty = cart[key] ? cart[key].qty : '';
-        
-        // --- Stock Check Logic ---
+        const cleanKey = key.replace(/[^a-zA-Z0-9]/g, '_'); 
         const stockNum = parseFloat(p.stock) || 0;
         let stockHtml = '';
-        let disableAttr = ''; // Naya variable input ko disable karne ke liye
+        let disableAttr = ''; 
         
         if (stockNum <= 0) {
-          // Negative or 0 stock -> Red color "Out of Stock"
-          stockHtml = `<div class="text-danger mt-1 fw-bold" style="font-size: 0.8rem;">Out of Stock</div>`;
-          disableAttr = 'disabled'; // Agar out of stock hai, toh disabled attribute set karein
+          stockHtml = `<div id="stock-text-${cleanKey}" class="text-danger mt-1 fw-bold" style="font-size: 0.8rem;">Out of Stock</div>`;
+          disableAttr = 'disabled'; 
         } else {
-          // Positive stock -> Green color showing stock value
-          stockHtml = `<div class="text-success mt-1 fw-bold" style="font-size: 0.8rem;">Stock: ${p.stock}</div>`;
+          stockHtml = `<div id="stock-text-${cleanKey}" class="text-success mt-1 fw-bold" style="font-size: 0.8rem;">Stock: ${p.stock}</div>`;
         }
         
         html += `
@@ -526,7 +562,7 @@ function executeSearch() {
             </div>
             <div class="d-flex align-items-center gap-3">
               <span class="price-text">₹${parseFloat(p.mrp).toFixed(2)}</span>
-              <input type="number" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}" ${disableAttr} 
+              <input type="number" id="qty-input-${cleanKey}" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}" ${disableAttr} 
                 oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
             </div>
           </div>`;
@@ -535,73 +571,7 @@ function executeSearch() {
       list.insertAdjacentHTML('beforeend', html);
       displayedCount += CHUNK_SIZE;
     }
-function renderNextChunkOLD18() {
-      if (displayedCount >= filteredData.length) return; 
-      const list = document.getElementById('productList');
-      const chunk = filteredData.slice(displayedCount, displayedCount + CHUNK_SIZE);
-      let html = '';
-      
-      chunk.forEach(p => {
-        const key = p.code || p.name;
-        const qty = cart[key] ? cart[key].qty : '';
-        
-        // --- Stock Check Logic ---
-        const stockNum = parseFloat(p.stock) || 0;
-        let stockHtml = '';
-        if (stockNum <= 0) {
-          // Negative or 0 stock -> Red color "Out of Stock"
-          stockHtml = `<div class="text-danger mt-1 fw-bold" style="font-size: 0.8rem;">Out of Stock</div>`;
-        } else {
-          // Positive stock -> Green color showing stock value
-          stockHtml = `<div class="text-success mt-1 fw-bold" style="font-size: 0.8rem;">Stock: ${p.stock}</div>`;
-        }
-        
-        html += `
-          <div class="list-card d-flex justify-content-between align-items-center">
-            <div>
-              <div class="product-group-text">${escapeHtml(p.group)} ${p.code ? '- ' + escapeHtml(p.code) : ''}</div>
-              <div class="product-name-text">${escapeHtml(p.name)}</div>
-              ${stockHtml}
-            </div>
-            <div class="d-flex align-items-center gap-3">
-              <span class="price-text">₹${parseFloat(p.mrp).toFixed(2)}</span>
-              <input type="number" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}"
-                oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
-            </div>
-          </div>`;
-      });
-      
-      list.insertAdjacentHTML('beforeend', html);
-      displayedCount += CHUNK_SIZE;
-    }
-    function renderNextChunkold() {
-      if (displayedCount >= filteredData.length) return; 
-      const list = document.getElementById('productList');
-      const chunk = filteredData.slice(displayedCount, displayedCount + CHUNK_SIZE);
-      let html = '';
-      chunk.forEach(p => {
-        const key = p.code || p.name;
-        const qty = cart[key] ? cart[key].qty : '';
-        html += `
-          <div class="list-card d-flex justify-content-between align-items-center">
-            <div>
-              <div class="product-group-text">${escapeHtml(p.group)} ${p.code ? '- ' + escapeHtml(p.code) : ''}</div>
-              <div class="product-name-text">${escapeHtml(p.name)}</div>
-              <div class="text-secondary mt-1" style="font-size: 0.8rem;">
-                Stock: <span class="fw-bold text-dark">${p.stock}</span>
-                 </div>
-            </div>
-            <div class="d-flex align-items-center gap-3">
-              <span class="price-text">₹${parseFloat(p.mrp).toFixed(2)}</span>
-              <input type="number" min="0" class="form-control qty-input" placeholder="Qty" value="${qty}"
-                oninput="updateCart('${escapeHtml(key)}', '${escapeHtml(p.name)}', ${p.mrp}, this.value)">
-            </div>
-          </div>`;
-      });
-      list.insertAdjacentHTML('beforeend', html);
-      displayedCount += CHUNK_SIZE;
-    }
-
+    
     function handleScroll() {
       if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 400) {
         if (document.getElementById('catalogSection').style.display === 'block') {
@@ -734,9 +704,6 @@ function renderNextChunkOLD18() {
       updateCartUI();
       document.getElementById('mobileInput').value = '';
       
-      // ==========================================
-      // CLEAR LOCAL STORAGE ON LOGOUT
-      // ==========================================
       localStorage.removeItem("htw_mobile");
       localStorage.removeItem("htw_name");
 
